@@ -51,7 +51,6 @@ formatting_task:
 # 4. DYNAMIC DATA INJECTION PLACEHOLDERS
 # ----------------------------------------------------------
 data_injection_placeholders:
-  # These placeholders must be replaced by your Python code before sending the prompt to the LLM.
   graph_schema_placeholder: "{graph_schema}"
   rag_examples_placeholder: "{rag_examples}"
   user_input_placeholder: "{user_input}"

@@ -34,6 +34,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+logging.getLogger("neo4j").setLevel(logging.ERROR)
+logging.getLogger("neo4j.notifications").setLevel(logging.ERROR)
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -91,10 +94,12 @@ def get_schema(study_path):
     return SCHEMA_DATA
 
 rag_data = """pergunta_natural": "Qual a soma da capacidade instalada das térmicas que usam Gás como combustível?",
-    "cypher_query": "MATCH (t:ThermalPlant)-[:Ref_Fuel]->(c:Fuel {name: 'Gas'}), (t)-[:HAS_PROPERTY]->(p:Property {nome_propriedade: 'InstalledCapacity'}) RETURN SUM(p.valor) AS total_potencia"
+    "cypher_query": MATCH (tp:ThermalPlant)-[:Ref_Fuel]->(fuel:Fuel) WHERE fuel.name = "gas"
+    RETURN sum(tp.InstCap) AS total_installed_capacity_gas;
 
     "pergunta_natural: Qual a soma da capacidade instalada das plantas térmicas?"
-    "cypher_query: MATCH (t:ThermalPlant)-[:Ref_Fuel]->(c:Fuel {name: 'Gas'}), (t)-[:HAS_PROPERTY]->(p:Property {nome_propriedade:
+    "cypher_query: MATCH (tp:ThermalPlant)
+    RETURN sum(tp.InstCap) AS total_installed_capacity_gas;
   
     "pergunta_natural": "Liste o nome das restrições ligadas à usina de Belo Monte.",
     "cypher_query": "MATCH (u:FactoryElement {name: 'Belo Monte'})-[:LINKED_TO]->(r:Restricao) RETURN r.nome"
