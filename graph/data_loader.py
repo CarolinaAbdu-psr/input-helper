@@ -19,10 +19,11 @@ def create_edges(G):
         conneced_objects = obj.referenced_by()
         for item in conneced_objects:
             edge_title = f"Ref_{obj.type}" 
+            edge_title_back = f"Ref_{item.type}" 
             item_code = (item.type + "_" + str(item.code)).replace(" ","")
             G.add_edge(item_code,node,title=edge_title)
-
-
+            G.add_edge(node,item_code,title=edge_title_back)
+        
 # --- Load Data ---
 def data_loader(study_path):
     try:

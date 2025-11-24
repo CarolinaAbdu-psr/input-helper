@@ -80,8 +80,13 @@ def get_schema(study_path):
     G, load_times = data_loader(study_path)
     node_properties = extract_node_properties(G)
     nodes, edges = load_networkx_to_neo4j(G, node_properties, uri=neo4j_uri, auth=neo4j_auth,clear_existing_data=True)
+    names = []
+    for obj in node_properties.values(): 
+        name = obj.get('name')
+        names.append(name)
     SCHEMA_DATA = f"""Nodes:{nodes}, 
-    Relationships: {edges}"""
+    Relationships: {edges}, 
+    Names: {names}"""
 
     return SCHEMA_DATA
 

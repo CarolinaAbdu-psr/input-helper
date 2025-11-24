@@ -18,7 +18,7 @@ system_prompt_template: |
   2. NEVER include introductory or explanatory text before or after the Cypher query.
 
   ### GRAPH SCHEMA (Dynamically Extracted)
-  This schema describes the available nodes and relationship types for querying the SDDP model:
+  This schema describes the available nodes, relationship types and names of entities for querying the SDDP model:
   {graph_schema}
 
   ### CONTEXTUAL EXAMPLES (RAG/Few-Shot)
