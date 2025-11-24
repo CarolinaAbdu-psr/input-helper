@@ -1,0 +1,3 @@
+"What is the Fuel used by Thermal 1" - ok 
+"What is the total Instaleld Capacity of Thermal Plants?" - não encontrou a propriedade InstalledCapacity porque não vem no as_dict
+"Which Thermal Plants use Fuel 1" - ok 
