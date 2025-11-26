@@ -319,6 +319,14 @@ def initialize(model: str) -> Tuple[StateGraph, MemorySaver]:
                 max_tokens=MAX_TOKENS,
                 request_timeout=REQUEST_TIMEOUT
             )
+        elif model == "local_land":
+            llm = ChatOpenAI(
+                model_name="qwen3:14b",
+                temperature=0.7,
+                max_tokens=MAX_TOKENS,
+                request_timeout=REQUEST_TIMEOUT,
+                base_url= "http://10.246.47.184:10000/v1"
+            )
         else:
             llm = ChatOpenAI(
                 model_name="gpt-4.1",
@@ -377,7 +385,7 @@ if __name__ == "__main__":
         config = {"configurable": {"thread_id": thread_id}}
 
         # 4. Run Workflow
-        logger.info("\n--- EXECUTANDO O WORKFLOW DO AGENTE (4 ETAPAS) ---")
+        logger.info("\n--- RUNNIG WORKFLOW (4 STEPS) ---")
         
         # Get input and cleaning previous messages
         result = chain.invoke({
