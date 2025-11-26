@@ -21,11 +21,113 @@ The pipeline is orchestrated by **LangGraph** and uses a configuration file (`ag
 | :--- | :--- | :--- |
 | **SDDP Graph** | Stores the model structure (nodes: Plants, Constraints; edges: `LINKED_TO`, `Ref_Fuel`). | **Neo4j** |
 | **Schema Processor** | Loads SDDP study files, builds the graph, and extracts the schema (`Nodes` and `Relationships`). | **Python / NetworkX / Neo4j** |
+|**Vectorstore Generator** | Creates a vectorstore with Cypher query examples and anti-examples from (`vectorstore_generator/docs/examples.json`) |  **ChromaDB / Embeddings** |
 | **Agent (LLM)** | Executes the two-step process: translation (LLM 1) and response formatting (LLM 2). | **LangChain / LangGraph / OpenAI / Anthropic** |
-<!-- **RAG Retriever** | Searches for semantically similar Cypher query examples (`sddp_cypher_examples.json`) relevant to the user's question. | **ChromaDB / Embeddings** | 
--->
+| **RAG Retriever** | Retrive Cypher query examples and antiexamples relevant to the user's question from the vectorstore. | **ChromaDB / Embeddings** | 
+
 
 -----
+## 📁 Vectorstore Generator 
+
+This section explains the crucial process of transforming cypher examples at examples.json into vectorstore for Input Helper Rag.
+
+```mermaid
+graph TD
+    A[Start: Examples Files] --> B(Load .json Documents);
+
+    subgraph Document Loading
+        B  --> B3{Is file .json?};
+        B3 -- Yes --> B4(JSONLoader: question + metadata_func);
+        B4 --> B5(Post-process: Set page_content = natural_question, Flatten metadata);
+        B3 -- No --> B6(TextLoader: Other text files);
+    end
+
+    B5 --> C;
+    B6 --> C;
+
+    C[All Loaded Documents List ] --> D(Create Vectorstore);
+
+    subgraph Chunking and Embedding
+        D --> D1(Iterate Documents);
+        D1  --> D4{Is Document from .json file?};
+        D4 -- Yes --> D5(Keep Document as 1 Chunk);
+        D4 -- No --> D6(RecursiveCharacterTextSplitter);
+        D5 --> D7[Add Chunks to final_chunks list];
+        D6 --> D7;
+        D7 --> D8[Filter large chunks, handle sub-splitting];
+        D8 --> D9(Generate Embeddings with OpenAIEmbeddings);
+        D9 --> D10(Store in ChromaDB batches);
+    end
+
+    
+    D10 --> E[Upload vectorstore to S3];
+
+    E --> F[End: Persistent ChromaDB Vectorstore]
+
+    style A fill:#4CAF50, color:#FFF, stroke-width:2px, stroke:#388E3C
+    style F fill:#4CAF50, color:#FFF, stroke-width:2px, stroke:#388E3C
+    style B3 fill:#FFC107, color:#000, stroke:#FF8F00
+
+    style B4 fill:#BBDEFB, color:#000, stroke:#1976D2
+    style B5 fill:#C8E6C9, color:#000, stroke:#4CAF50
+    style B6 fill:#CFD8DC, color:#000, stroke:#607D8B
+    style D1 fill:#FFC107, color:#000, stroke:#FF8F00
+    style D4 fill:#FFC107, color:#000, stroke:#FF8F00
+    style D5 fill:#C8E6C9, color:#000, stroke:#4CAF50
+    style D6 fill:#CFD8DC, color:#000, stroke:#607D8B
+    style D7 fill:#FFECB3, color:#000, stroke:#FFD740
+    style D8 fill:#FFCCBC, color:#000, stroke:#FF5722
+    style D9 fill:#D1C4E9, color:#000, stroke:#5E35B1
+    style D10 fill:#B3E5FC, color:#000, stroke:#0288D1
+```
+
+### Rag Generator
+The program `rag_generator.py` creates a vectorstore using the available documents at `docs` folder. It uses `rag_utils.py` and `docs_collector` functions to run the workflow described above. 
+
+#### 1. Data Ingestion and Transformation
+
+The `load_documents` function is responsible for ingesting the structured JSON files:
+
+* **Contrastive Examples (`.json`):** These files are loaded using the LangChain `JSONLoader`. Crucially, the `jq_schema` is set to iterate over the root list (`.[]`), and a custom `metadata_func` is used to flatten the nested data structure.
+    * The **`page_content`** is set to the short **`natural_question`** (the string to be vectorized).
+    * The full **`correct_cypher`** and **`incorrect_cypher`** objects are flattened and stored in the document's **`metadata`** as simple strings (e.g., `cypher_correto_query`, `cypher_correto_inst`) to satisfy the constraints of ChromaDB.
+
+#### 2. Chunking Strategy (Embedding Unit)
+
+The `create_vectorstore` function processes the loaded documents into final chunks for embedding:
+
+* **Contrastive Examples (Zero-Chunking):** **Each question** extracted from the JSON is treated as a single, complete unit. **No further splitting** is applied. This ensures that the entire semantic context of the question is captured in a single embedding vector, maximizing retrieval accuracy for the RAG step. 
+
+#### 3. Vectorization and Persistence
+
+The process concludes by generating embeddings and saving the database:
+
+* **Embedding Model:** Uses a high-quality embedding model (e.g., OpenAI `text-embedding-3-small`) to convert the text chunks into vectors.
+* **ChromaDB:** The generated vectors and their associated metadata are stored in a persistent **ChromaDB** instance. This database serves as the searchable knowledge base for the `retrieve_context` step of the LangGraph workflow.
+
+### Upload vectorstore into S3
+
+After creating the ChromaDB folder containing the vector store, `rag_uploader.py` compresses the vector store into a ZIP file, saves it in the vectorstore directory, and then uses the functions from `api_s3.py` to upload it to Amazon S3.
+
+When you upload your vector store to Amazon S3 (Simple Storage Service), S3 serves as a highly durable, scalable, and secure storage layer. It does not process, index, or interact with the vector data itself—its role is solely to store the files reliably.
+
+### Update Vectorstore
+
+#### Step 1: 
+
+Update the json file, following the existing structure and save it.
+
+#### Step 2: 
+
+Run `rag_generator.py` to generate ChromaDB vectorstores
+
+The default source path is `vectorstore_generator/docs` and the default output is `chromadb`. 
+
+#### Step 3:
+
+`Run rag_uploader.py` to upload the vectorstore into S3. 
+
+---
 
 ## ⚙️ Visual Workflow 
 
@@ -52,13 +154,8 @@ graph TD
         B
         D
     end
-    
-    %% Annotations for clarity
-    click B "### Retrive Context" "1. Injects Schema and RAG Examples into the Prompt."
-    click C "2. Translates Question -> Cypher (Output is PURE Query)."
-    click D "3. Executes the Cypher Query on Neo4j. Captures the raw result."
-    click E "4. Formats Raw Result (Query Result) into a Friendly Textual Answer."
 ```
+
 ### Input Data
 - LLM model (gpt-4.1 by default)
 - SDDP Path 
@@ -69,11 +166,14 @@ graph TD
     - Creates a graph for the case 
     - Upload this graph to Neo4j database
     - Get entity types, relationships names and names (SCHEMA_DATA)
-2. Get examples (rag_data)
-3. Add rag_data and SCHEMADATA to State Node (retrive_contex)
+2. Get examples: 
+    - Use a retriver to get the 3 most relevant examples to use as context
+    - This examples is retrived according to the user input, and then correct and incorret examples are generated
+    - Formata and save at context_str
+3. Add context_str and SCHEMADATA to State Node (retrive_contex)
 
 > **_NOTE:_** 
-    On development roadmap, this will be a more complex retriver with similiraty search between inputs and multiple examples 
+    The examples file is not filled enough. More examples must be added 
 
 ### Step 2 - Generate Cypher Query : 
 1. Creates System Prompt and System Message with rag_data and SCHEMA_DATA 

@@ -121,28 +121,65 @@ def get_schema(study_path):
 
     return SCHEMA_DATA
 
-# 1.2. Examples that will be substitute by an file of example to be used by the retriver 
-rag_data = """pergunta_natural": "Qual a soma da capacidade instalada das térmicas que usam Gás como combustível?",
-    "cypher_query": MATCH (tp:ThermalPlant)-[:Ref_Fuel]->(fuel:Fuel) WHERE fuel.name = "gas"
-    RETURN sum(tp.InstCap) AS total_installed_capacity_gas;
+def load_vectorstore() -> Chroma:
+    """1.1. Loads the vectorstore with examples to use as context """
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    
+    persist_directory = "vectorstore"
 
-    "pergunta_natural: Qual a soma da capacidade instalada das plantas térmicas?"
-    "cypher_query: MATCH (tp:ThermalPlant)
-    RETURN sum(tp.InstCap) AS total_installed_capacity_gas;
-  
-    "pergunta_natural": "Liste o nome das restrições ligadas à usina de Belo Monte.",
-    "cypher_query": "MATCH (u:FactoryElement {name: 'Belo Monte'})-[:LINKED_TO]->(r:Restricao) RETURN r.nome"
-"""
+    if os.path.exists(persist_directory):
+        return Chroma(
+            persist_directory=persist_directory,
+            embedding_function=embeddings,
+            client_settings=chromadb.config.Settings(anonymized_telemetry=False)
+        )
+    raise ValueError(f"Vectorstore not found : {persist_directory}")
+
+def format_contrastive_examples(docs: List) -> str:
+    """
+    Formats a list of retrieved documents into a context string
+    that includes both Correct and Incorrect Cypher queries (metadata data).
+    """
+    formatted_blocks = []
+    
+    for i, doc in enumerate(docs):
+        # 1. Get metadata
+        metadata = doc.metadata
+        
+        # 2. Extract cypher examples
+        correct = metadata.get("correct_cypher", {})
+        incorrect = metadata.get("incorrect_cypher", {})
+        
+        # 3. Create example
+        block = f"""
+        ### EXample {i + 1}
+        Question: {doc.page_content}
+
+        CORRECT SINTAX (DO): ({correct.get('instruction', 'N/A')})
+        ```cypher
+        {correct.get('query', 'N/A')}````
+
+        INCORRECT SINTAX (DON'T DO): ({incorrect.get('error', 'N/A')})"""
+
+        formatted_blocks.append(block.strip())
+        
+    return "\n\n" + "\n\n".join(formatted_blocks)
 
 def retrieve_context(state: GraphState) -> Dict[str, Any]:
     """
     1. Get Cypher Examples (rag data) and get Graph Schema
     """
     logger.info("Step: Retrive Context")
-    
-    
+
+    vectorstore = load_vectorstore()
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    docs = retriever.invoke(state["input"])
+    context_str = format_contrastive_examples(docs)
+
+    logger.info(f"Examples context generated: {context_str}")
+
     return {
-        "context": rag_data,
+        "context": context_str,
         "schema": SCHEMA_DATA 
     }
 

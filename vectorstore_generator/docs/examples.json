@@ -1,0 +1,86 @@
+[
+  {
+    "id": 1,
+    "natural_question": "Qual a soma da potência instalada das térmicas a gás?",
+    "correct_cypher": {
+      "instruction": "Exemplo de sintaxe correta para agregação de propriedades.",
+      "query": "MATCH (t:Termica)-[:IS_FUELLED_BY]->(c:Combustivel {nome: 'Gás'}), (t)-[:HAS_PROPERTY]->(p:Property {nome_propriedade: 'Capacidade Instalada'}) RETURN SUM(p.valor) AS total_potencia"
+    },
+    "incorrect_cypher": {
+      "error": "Erro: Usar WHERE para filtrar propriedades numéricas em vez de usar a aresta HAS_PROPERTY.",
+      "query": "MATCH (t:Termica)-[:IS_FUELLED_BY]->(c:Combustivel {nome: 'Gás'}) WHERE t.CapacidadeInstalada IS NOT NULL RETURN SUM(t.CapacidadeInstalada)"
+    }
+  },
+  {
+    "id": 2,
+    "natural_question": "Liste o nome das restrições obrigatórias da usina de Itaparica.",
+    "correct_cypher": {
+      "instruction": "Exemplo de sintaxe correta para filtrar propriedades em arestas.",
+      "query": "MATCH (u:Usina {nome: 'Itaparica'})-[r:LINKED_TO {obrigatoria: true}]->(rest:Restricao) RETURN rest.nome"
+    },
+    "incorrect_cypher": {
+      "error": "Erro: Tentar filtrar a propriedade da aresta como se fosse propriedade do nó.",
+      "query": "MATCH (u:Usina {nome: 'Itaparica'})-[:LINKED_TO]->(rest:Restricao) WHERE rest.obrigatoria = true RETURN rest.nome"
+    }
+  },
+  {
+    "id": 3,
+    "natural_question": "List the names of the mandatory restrictions linked to the Itaparica power plant.",
+    "correct_cypher": {
+      "instruction": "Correct syntax for filtering relationship properties using brackets [r:RELATIONSHIP {property: value}].",
+      "query": "MATCH (u:Usina {name: 'Itaparica'})-[r:LINKED_TO {obrigatoria: true}]->(rest:Restricao) RETURN rest.nome"
+    },
+    "incorrect_cypher": {
+      "error": "Error: Attempting to filter the relationship property ('obrigatoria') as if it were a node property ('rest.obrigatoria').",
+      "query": "MATCH (u:Usina {name: 'Itaparica'})-[:LINKED_TO]->(rest:Restricao) WHERE rest.obrigatoria = true RETURN rest.nome"
+    }
+  },
+  {
+    "id": 4,
+    "natural_question": "How many hydro plants are connected to a restriction that is linked to the Southeast subsystem?",
+    "correct_cypher": {
+      "instruction": "Correct use of optional MATCH and COUNT aggregation over a multi-step path.",
+      "query": "MATCH (h:Usina:Hydro)-[:LINKED_TO]->(r:Restricao)-[:AFFECTS_SUBSYSTEM]->(s:Subsistema {name: 'Southeast'}) RETURN COUNT(DISTINCT h) AS count_hydro_plants"
+    },
+    "incorrect_cypher": {
+      "error": "Error: Incorrectly attempting to use the DISTINCT keyword on the relationship variable 'r' or failing to specify the full path.",
+      "query": "MATCH (h:Usina:Hydro)-[:LINKED_TO]->(r:Restricao) WHERE r.linked_to = 'Southeast' RETURN COUNT(h)"
+    }
+  },
+  {
+    "id": 5,
+    "natural_question": "Find all thermal plants that have both a 'Max_Capacity' property and a 'Min_Capacity' property.",
+    "correct_cypher": {
+      "instruction": "Correct syntax for matching multiple properties (or relationships) to the same node using separate MATCH clauses.",
+      "query": "MATCH (t:Termica)-[:HAS_PROPERTY]->(max:Property {name_propriedade: 'Max_Capacity'}), (t)-[:HAS_PROPERTY]->(min:Property {name_propriedade: 'Min_Capacity'}) RETURN t.name"
+    },
+    "incorrect_cypher": {
+      "error": "Error: Using OR or IN operator inside a single match pattern, which is usually less performant and incorrect for structural path matching.",
+      "query": "MATCH (t:Termica)-[:HAS_PROPERTY]->(p:Property) WHERE p.name_propriedade IN ['Max_Capacity', 'Min_Capacity'] RETURN t.name"
+    }
+  },
+  {
+    "id": 6,
+    "natural_question": "Show the name and property value of any plant that has a 'Cost_Per_Unit' property greater than 50.",
+    "correct_cypher": {
+      "instruction": "Correct syntax for filtering numeric property values using the dedicated Property node and WHERE clause.",
+      "query": "MATCH (f:FactoryElement)-[:HAS_PROPERTY]->(p:Property {name_propriedade: 'Cost_Per_Unit'}) WHERE p.valor > 50 RETURN f.name, p.valor AS Costo"
+    },
+    "incorrect_cypher": {
+      "error": "Error: Attempting to treat the property node 'p' as the main node for filtering, or neglecting the relationship HAS_PROPERTY.",
+      "query": "MATCH (f:FactoryElement) WHERE f.Cost_Per_Unit > 50 RETURN f.name"
+    }
+  },
+  {
+    "id": 7,
+    "natural_question": "Which constraints are linked to a hydro plant but NOT linked to any thermal plant?",
+    "correct_cypher": {
+      "instruction": "Correct use of the NOT relationship existence check (NOT (r)<-[:LINKED_TO]-(t)) or the standard WHERE NOT EXISTS.",
+      "query": "MATCH (h:Usina:Hydro)-[:LINKED_TO]->(r:Restricao) WHERE NOT EXISTS((r)<-[:LINKED_TO]-(:Termica)) RETURN DISTINCT r.nome"
+    },
+    "incorrect_cypher": {
+      "error": "Error: Using a single MATCH with a WHERE clause that only checks the relationship type without exclusion, leading to incorrect results.",
+      "query": "MATCH (h:Usina)-[:LINKED_TO]->(r:Restricao) WHERE h:Hydro AND NOT h:Termica RETURN DISTINCT r.nome"
+    }
+  }
+]
