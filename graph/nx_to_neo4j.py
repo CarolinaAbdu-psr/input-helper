@@ -1,6 +1,8 @@
 import networkx as nx
 from graph.data_loader import data_loader
+#from data_loader import data_loader
 from graph.get_data_properties import extract_node_properties
+#from get_data_properties import extract_node_properties
 from neo4j import GraphDatabase
 from typing import Dict, Any
 
@@ -39,7 +41,7 @@ def load_networkx_to_neo4j(
         
         # Define o Label (Rótulo) e remove do dicionário de propriedades se presente
         
-        label = properties.pop('type', default_node_label)
+        label = properties.pop('ObjType', default_node_label)
         
 
         if not isinstance(label, str) or not label:
@@ -89,7 +91,7 @@ def load_networkx_to_neo4j(
         for n in G.nodes():
             # Obtém as propriedades do nó, garantindo um dicionário 
             data = node_properties.get(n, {})
-            label = data.get('type', default_node_label)
+            label = data.get('ObjType', default_node_label)
             if label not in nodes_entities:
                 nodes_entities.append(label)
             entities = session.execute_write(create_node_tx, n, dict(data))
@@ -116,8 +118,8 @@ if __name__ == "__main__":
 
     STUDY_PATH = r"C:\PSR\SDDP18.0\examples\operation\1_stage\Case06"
     G, load_times = data_loader(STUDY_PATH)
-    node_properties = extract_node_properties(G)
-
+    G, node_properties = extract_node_properties(G)
+    print(G.nodes())
 
     nodes,edges = load_networkx_to_neo4j(G, node_properties, uri=neo4j_uri, auth=neo4j_auth,clear_existing_data=True)
 

@@ -159,7 +159,9 @@ def format_contrastive_examples(docs: List) -> str:
         ```cypher
         {correct.get('query', 'N/A')}````
 
-        INCORRECT SINTAX (DON'T DO): ({incorrect.get('error', 'N/A')})"""
+        INCORRECT SINTAX (DON'T DO): ({incorrect.get('error', 'N/A')})
+        ```cypher
+        {incorrect.get('query','N/A')}````"""
 
         formatted_blocks.append(block.strip())
         
