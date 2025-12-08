@@ -82,5 +82,17 @@
       "error": "Error: Using a single MATCH with a WHERE clause that only checks the relationship type without exclusion, leading to incorrect results.",
       "query": "MATCH (h:Usina)-[:LINKED_TO]->(r:Restricao) WHERE h:Hydro AND NOT h:Termica RETURN DISTINCT r.nome"
     }
+  }, 
+  {
+    "id": 8 , 
+    "natural_question": "TERMINARRR What is the demand of system 1?",
+    "correct_cypher": {
+      "instruction": "Correct use of UNWIND to desaggegate all values 'values' do nó e, em seguida, aplicar a função de agregação MAX() no conjunto resultante.",
+      "query": "MATCH (s:System {code: '1'})-[:Ref_DemandSegment]->(d:DemandSegment {code : '1'})-[:Has_Property]->(e:EnergyPerBlock_Dataframe) \nWHERE e.code = 1 \nUNWIND e.values AS demand_value \nRETURN MAX(demand_value) AS max_demand"
+    },
+    "incorrect_cypher": {
+      "error": "Error: Using a single MATCH with a WHERE clause that only checks the relationship type without exclusion, leading to incorrect results.",
+      "query": "MATCH (h:Usina)-[:LINKED_TO]->(r:Restricao) WHERE h:Hydro AND NOT h:Termica RETURN DISTINCT r.nome"
+    }
   }
 ]

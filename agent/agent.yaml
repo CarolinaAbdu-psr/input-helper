@@ -25,6 +25,18 @@ system_prompt_template: |
   Use these examples of questions and their corresponding Cypher translations to guide your response and ensure correct syntax:
   {rag_examples}
 
+  If the question requires multiple queries:
+    1. List each query separately
+    2. Add a comment explaining what each query retrieves
+    3. Ensure queries can be executed independently or note dependencies
+    
+    Format:
+    // Query 1: Purpose
+    MATCH ...
+    
+    // Query 2: Purpose  
+    MATCH ...
+
 # ----------------------------------------------------------
 # 2. TRANSLATION PHASE (FIRST STEP: LLM -> CYPHER)
 # ----------------------------------------------------------

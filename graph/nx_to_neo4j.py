@@ -1,8 +1,8 @@
 import networkx as nx
-from graph.data_loader import data_loader
-#from data_loader import data_loader
-from graph.get_data_properties import extract_node_properties
-#from get_data_properties import extract_node_properties
+#from graph.data_loader import data_loader
+from data_loader import data_loader
+#from graph.get_data_properties import extract_node_properties
+from get_data_properties import extract_node_properties
 from neo4j import GraphDatabase
 from typing import Dict, Any
 
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     neo4j_uri = "neo4j://127.0.0.1:7687"
     neo4j_auth = ("neo4j", "psr-2025")
 
-    STUDY_PATH = r"C:\PSR\SDDP18.0\examples\operation\1_stage\Case06"
+    STUDY_PATH = r"D:\\01-Repositories\\factory-graphs\\Bolivia"
     G, load_times = data_loader(STUDY_PATH)
     G, node_properties = extract_node_properties(G)
     print(G.nodes())
