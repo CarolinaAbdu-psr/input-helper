@@ -1,8 +1,8 @@
 import networkx as nx
-#from graph.data_loader import data_loader
-from data_loader import data_loader
-#from graph.get_data_properties import extract_node_properties
-from get_data_properties import extract_node_properties
+from graph.data_loader import data_loader
+#from data_loader import data_loader
+from graph.get_data_properties import extract_node_properties
+#from get_data_properties import extract_node_properties
 from neo4j import GraphDatabase
 from typing import Dict, Any
 
@@ -107,7 +107,7 @@ def load_networkx_to_neo4j(
             session.execute_write(create_relationship_tx, u, v, dict(attrs))
 
     driver.close()
-    print("✅ Grafo carregado no Neo4j com sucesso!")
+    print("Grafo carregado no Neo4j com sucesso!")
     return nodes_entities, edges_labels
 
 

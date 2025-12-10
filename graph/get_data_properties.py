@@ -5,7 +5,7 @@ from typing import Dict, Any, Tuple
 
 # Configure logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 
 class PropertyExtractor:
@@ -101,7 +101,7 @@ class PropertyExtractor:
             return "Complex non-serializable value"
         
     def extract_static_property_with_dimensions(self, key: str, obj) -> Any:
-        
+
         dimensions = obj.description(key).dimensions()
         for d in dimensions.values():
             value = obj.get(f"{key}({d})")
@@ -213,7 +213,7 @@ class PropertyExtractor:
             'Full_ID': node_id,
             'ObjType': attrs['type'],
             'Code': obj.code,
-            'Name': obj.name 
+            'Name': obj.name.strip() 
         }
     
     def _extract_all_properties(self, descriptions: Dict, obj, node_id: str) -> Dict[str, Any]:
@@ -267,6 +267,7 @@ def extract_node_properties(graph_original):
 
 if __name__== "__main__":
     from data_loader import data_loader
+    logger.setLevel(logging.DEBUG)
     STUDY_PATH = r"D:\\01-Repositories\\factory-graphs\\Bolivia"
     G, load_times = data_loader(STUDY_PATH)
     G, node_properties = extract_node_properties(G)

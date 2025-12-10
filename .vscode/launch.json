@@ -1,0 +1,59 @@
+{
+    // Use o IntelliSense para saber mais sobre os atributos possíveis.
+    // Passe o mouse para ver as descrições dos atributos existentes.
+    // Para obter mais informações, visite: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: RAG SDDP Agent",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run_llm.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                // LMM Model 
+                "-m",
+                "gpt-4.1", 
+                
+                // SDDP study path 
+                "-s",
+                "D:\\01-Repositories\\factory-graphs\\Bolivia", 
+                
+                // Natural question 
+                "-q",
+                "Whichs systems are in this case?" ,
+
+                // Recreat study 
+                "-r",
+                "False"
+
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                
+            }
+        },
+        {
+            "name": "Rag Generator",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "vectorstore_generator\\rag_generator.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                // Path with documents
+                "path",
+                "vectorstore_generator\\docs", 
+                
+                // Output vectorstore
+                "name",
+                "chromadb"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                
+            }
+        }
+    ]
+}

@@ -97,27 +97,54 @@ class GraphState(TypedDict):
 # Step 1 : Retrive Context 
 #--------------------------------------------------------
 
-def get_schema(study_path):
+def get_schema(study_path, recreate_study):
 
     """1.1. Create a Neo4j Database to the case and save important informations
     at SCHEMA_DATA"""
 
-    neo4j_uri = "neo4j://127.0.0.1:7687"
-    neo4j_auth = ("neo4j", "psr-2025")
+    schema_path = os.path.join(study_path, "schema.txt")
 
-    #Load Graph 
-    G, load_times = data_loader(study_path)
-    node_properties = extract_node_properties(G)
-    nodes, edges = load_networkx_to_neo4j(G, node_properties, uri=neo4j_uri, auth=neo4j_auth,clear_existing_data=True)
+    if recreate_study:
+        logger.info("Recreating Neo4j database and extracting schema from study...")
+
+        neo4j_uri = "neo4j://127.0.0.1:7687"
+        neo4j_auth = ("neo4j", "psr-2025")
+
+        #Load Graph 
+        G, load_times = data_loader(study_path)
+        G, node_properties = extract_node_properties(G)
+        nodes, edges = load_networkx_to_neo4j(G, node_properties, uri=neo4j_uri, auth=neo4j_auth,clear_existing_data=True)
+        
+        # Get Entities Names (nodes), Relatioships Names (edges) and Objects Names (names)
+        names = {}
+        for obj in node_properties.values(): 
+            name = obj.get('Name')
+            obj_type = obj.get('ObjType')
+
+            if obj_type not in names:
+                names[obj_type] = []
+
+            names[obj_type].append(name)
+
+        SCHEMA_DATA = f"""Nodes with its possible names:{names}, 
+        Relationships: {edges}"""
+
+        # Save schema to file for future use
+        logger.info(f"Saving graph schema to {schema_path}...")
+        with open(schema_path, "w", encoding="utf-8") as f:
+            f.write(SCHEMA_DATA)
+
+    else: 
+        logger.info("Loading graph schema from existing schema file...")
+        if not os.path.isfile(schema_path):
+            logger.error(f"Schema file not found: {schema_path}. Please create the study ")
+            sys.exit(1) 
+
+        with open(schema_path, "r", encoding="utf-8") as f:
+            SCHEMA_DATA = f.read()
+
+    print(SCHEMA_DATA)
     
-    # Get Entities Names (nodes), Relatioships Names (edges) and Objects Names (names)
-    names = []
-    for obj in node_properties.values(): 
-        name = obj.get('name')
-        names.append(name)
-    SCHEMA_DATA = f"""Nodes:{nodes}, 
-    Relationships: {edges}, 
-    Names: {names}"""
 
     return SCHEMA_DATA
 
@@ -146,22 +173,18 @@ def format_contrastive_examples(docs: List) -> str:
         # 1. Get metadata
         metadata = doc.metadata
         
-        # 2. Extract cypher examples
-        correct = metadata.get("correct_cypher", {})
-        incorrect = metadata.get("incorrect_cypher", {})
-        
         # 3. Create example
         block = f"""
         ### EXample {i + 1}
         Question: {doc.page_content}
 
-        CORRECT SINTAX (DO): ({correct.get('instruction', 'N/A')})
+        CORRECT SINTAX (DO): ({metadata.get('correct_cypher_inst', 'N/A')})
         ```cypher
-        {correct.get('query', 'N/A')}````
+        {metadata.get('correct_cypher_query', 'N/A')}````
 
-        INCORRECT SINTAX (DON'T DO): ({incorrect.get('error', 'N/A')})
+        INCORRECT SINTAX (DON'T DO): ({metadata.get('incorrect_cypher_inst', 'N/A')})
         ```cypher
-        {incorrect.get('query','N/A')}````"""
+        {metadata.get('incorrect_cypher_query','N/A')}````"""
 
         formatted_blocks.append(block.strip())
         
@@ -224,7 +247,11 @@ def parse_multiple_queries(response: str) -> List[str]:
     queries = []
     current_query = []
     
-    for line in response.split('\n'):
+    content = response.content
+
+    print(content)
+
+    for line in content.split('\n'):
         if line.strip().startswith('//') and current_query:
             queries.append('\n'.join(current_query).strip())
             current_query = []
@@ -423,12 +450,15 @@ if __name__ == "__main__":
                          help="Path to the SDDP study files required to load the graph schema into Neo4j.")
     parser.add_argument("-q", "--query", required=True, 
                          help="The natural language question to be processed by the agent.")
+    parser.add_argument("-r", "--recreate_study", default=False, help="If the neo4j database need to be recrated, should be True" )
     
     args = parser.parse_args()
 
     model = args.model
     study_path = args.study_path
     user_input = args.query
+    print(args.recreate_study)
+    recreate_study = bool(args.recreate_study)
     
     logger.info(f"--- Starting SDPP Agent RAG---")
     logger.info(f"Selected LLM model: {model}")
@@ -438,7 +468,7 @@ if __name__ == "__main__":
     try:
         # 1. Get Schema and create neo4j database 
         global SCHEMA_DATA 
-        SCHEMA_DATA = get_schema(study_path) 
+        SCHEMA_DATA = get_schema(study_path,recreate_study) 
         logger.info(f"✅ Graph Schema loaded and Neo4j initialized/updated.")
         
         # 2. Initialize LangGraph Workflow
