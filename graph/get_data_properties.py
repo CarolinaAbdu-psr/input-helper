@@ -64,8 +64,8 @@ class PropertyExtractor:
             time_series_data.update({
                 'Full_ID': node_id,
                 'ObjType': property_type,
-                'Code': obj.code,
-                'Name': f"{obj.type}_{obj.code}"
+                'code': obj.code,
+                'name': f"{obj.type}_{obj.code}"
             })
             
             self.properties[node_id] = time_series_data
@@ -212,8 +212,8 @@ class PropertyExtractor:
         return {
             'Full_ID': node_id,
             'ObjType': attrs['type'],
-            'Code': obj.code,
-            'Name': obj.name.strip() 
+            'code': obj.code,
+            'name': obj.name.strip() 
         }
     
     def _extract_all_properties(self, descriptions: Dict, obj, node_id: str) -> Dict[str, Any]:

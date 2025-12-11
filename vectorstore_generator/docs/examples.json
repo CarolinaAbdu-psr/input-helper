@@ -85,14 +85,13 @@
   }, 
   {
     "id": 8 , 
-    "natural_question": "TERMINARRR What is the demand of system 1?",
+    "natural_question": "Which is the Plant with the highest Installed Capcity? ",
     "correct_cypher": {
-      "instruction": "Correct use of UNWIND to desaggegate all values 'values' do nó e, em seguida, aplicar a função de agregação MAX() no conjunto resultante.",
-      "query": "MATCH (s:System {code: '1'})-[:Ref_DemandSegment]->(d:DemandSegment {code : '1'})-[:Has_Property]->(e:EnergyPerBlock_Dataframe) \nWHERE e.code = 1 \nUNWIND e.values AS demand_value \nRETURN MAX(demand_value) AS max_demand"
-    },
+      "instruction": "Get the plant.InstaleldCapacity property for each plant and compare",
+      "query": "MATCH (s:System)-[:Ref_ThermalPlant]->(tp:ThermalPlant) RETURN tp.name AS thermal_plant_with_highest_capacity ORDER BY tp.MaximumGenerationCapacity DESC"},
     "incorrect_cypher": {
-      "error": "Error: Using a single MATCH with a WHERE clause that only checks the relationship type without exclusion, leading to incorrect results.",
-      "query": "MATCH (h:Usina)-[:LINKED_TO]->(r:Restricao) WHERE h:Hydro AND NOT h:Termica RETURN DISTINCT r.nome"
+      "error": "Error: Use a the Maximun Generatin Capaciy and the HAS_PROPERTY edge as were goint to get a dynamic value, instead of using the simple property.",
+      "query": "MATCH (s:System)-[:Ref_ThermalPlant]->(tp:ThermalPlant)-[:Has_Property]->(cap:MaximumGenerationCapacity) RETURN tp.name AS ThermalPlantName, cap.value AS InstalledCapacity ORDER BY cap.value DESC LIMIT 1"
     }
   }
 ]

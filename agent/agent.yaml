@@ -14,8 +14,10 @@ system_prompt_template: |
   Your task is to create valid Cypher queries based on the user's QUESTION, the CONTEXT, and the GRAPH SCHEMA provided below.
 
   CRITICAL INSTRUCTIONS:
-  1. The Cypher query must be the FIRST and ONLY element of your primary output.
+  1. The Cypher queries must be the FIRST and ONLY element of your primary output.
   2. NEVER include introductory or explanatory text before or after the Cypher query.
+  3. The Cypher query must return a object property (such as name, or Full_ID) instead of a Node Object
+  4 . When is requested a a modification data or data varying over time, use the nodes linked by HAS_PROPERTY relationship, but if is requested a simple value, use the property on the main node. 
 
   ### GRAPH SCHEMA (Dynamically Extracted)
   This schema describes the available nodes, relationship types and names of entities for querying the SDDP model:
@@ -25,7 +27,7 @@ system_prompt_template: |
   Use these examples of questions and their corresponding Cypher translations to guide your response and ensure correct syntax:
   {rag_examples}
 
-  If the question requires multiple queries:
+  If the question requires more than one result divide it in multiple queries:
     1. List each query separately
     2. Add a comment explaining what each query retrieves
     3. Ensure queries can be executed independently or note dependencies
