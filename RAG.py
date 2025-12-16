@@ -44,6 +44,10 @@ AGENTS_DIR = "agent"
 CYPHER_AGENT_FILENAME = "agent.yaml"
 
 
+# -----------------------------
+# Load agent configuration
+# -----------------------------
+
 def load_cypher_agent_config(filepath: str) -> bool:
     """Load prompts and templates from the agent YAML configuration."""
     global SYSTEM_PROMPT_TEMPLATE, USER_PROMPT_CYPHER_GENERATION, USER_PROMPT_TEXTUAL_RESPONSE
@@ -73,6 +77,9 @@ def load_agents_config() -> Dict[str, Any]:
 # Load configuration once
 _AGENTS_CONFIG = load_agents_config()
 
+# -----------------------------
+# Creata GraphState
+# -----------------------------
 
 class GraphState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
@@ -86,8 +93,46 @@ class GraphState(TypedDict):
 
 
 # -----------------------------
-# Schema and RAG helpers
+# Get study schema 
 # -----------------------------
+
+def create_schema(study_path: str, schema_path:str):
+    "Create a schema and save it at the study folder"
+    neo4j_uri = "neo4j://127.0.0.1:7687"
+    neo4j_auth = ("neo4j", "psr-2025")
+
+    # Load graph data
+    G, load_times = data_loader(study_path)
+    G, node_properties = extract_node_properties(G)
+    nodes, edges = load_networkx_to_neo4j(
+        G, node_properties, uri=neo4j_uri, auth=neo4j_auth, clear_existing_data=True
+    )
+
+    names = {}
+    for obj in node_properties.values():
+        name = obj.get('name')
+        obj_type = obj.get('ObjType')
+        if obj_type not in names:
+            names[obj_type] = []
+        names[obj_type].append(name)
+
+    SCHEMA_DATA = f"Nodes with their possible names: {names}, Relationships: {edges}.  "
+
+    logger.info(f"Saving graph schema to {schema_path}...")
+    with open(schema_path, "w", encoding="utf-8") as f:
+        f.write(SCHEMA_DATA)
+
+    return SCHEMA_DATA
+
+def load_existent_schema(schema_path: str):
+    "Load the schema from an existent file"
+    if not os.path.isfile(schema_path):
+        logger.error(f"Schema file not found: {schema_path}. Please create the study.")
+        raise FileNotFoundError(schema_path)
+    with open(schema_path, "r", encoding="utf-8") as f:
+        SCHEMA_DATA = f.read()
+    
+    return SCHEMA_DATA
 
 def get_schema(study_path: str, recreate_study: bool) -> str:
     """Create or load a schema summary file for the study.
@@ -99,41 +144,16 @@ def get_schema(study_path: str, recreate_study: bool) -> str:
 
     if recreate_study:
         logger.info("Recreating Neo4j database and extracting schema from study...")
-
-        neo4j_uri = "neo4j://127.0.0.1:7687"
-        neo4j_auth = ("neo4j", "psr-2025")
-
-        # Load graph data
-        G, load_times = data_loader(study_path)
-        G, node_properties = extract_node_properties(G)
-        nodes, edges = load_networkx_to_neo4j(
-            G, node_properties, uri=neo4j_uri, auth=neo4j_auth, clear_existing_data=True
-        )
-
-        names = {}
-        for obj in node_properties.values():
-            name = obj.get('name')
-            obj_type = obj.get('ObjType')
-            if obj_type not in names:
-                names[obj_type] = []
-            names[obj_type].append(name)
-
-        SCHEMA_DATA = f"Nodes with their possible names: {names}, Relationships: {edges}.  "
-
-        logger.info(f"Saving graph schema to {schema_path}...")
-        with open(schema_path, "w", encoding="utf-8") as f:
-            f.write(SCHEMA_DATA)
+        SCHEMA_DATA = create_schema(study_path, schema_path)
+        
     else:
-        logger.info("Loading graph schema from existing schema file...")
-        if not os.path.isfile(schema_path):
-            logger.error(f"Schema file not found: {schema_path}. Please create the study.")
-            raise FileNotFoundError(schema_path)
-        with open(schema_path, "r", encoding="utf-8") as f:
-            SCHEMA_DATA = f.read()
+        SCHEMA_DATA = load_existent_schema(schema_path)
 
-    print(SCHEMA_DATA)
     return SCHEMA_DATA
 
+# -----------------------------
+# Retrive context
+# -----------------------------
 
 def load_vectorstore() -> Chroma:
     """Load a Chroma vectorstore persisted in `vectorstore` directory."""
@@ -179,6 +199,7 @@ def retrieve_context(state: GraphState) -> Dict[str, Any]:
     vectorstore = load_vectorstore()
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(state["input"])
+
     context_str = format_contrastive_examples(docs)
 
     logger.info("Examples context generated")
@@ -215,20 +236,25 @@ def parse_multiple_queries(response) -> List[str]:
 
 def generate_query(state: GraphState, llm: BaseChatOpenAI) -> Dict[str, Any]:
     """Generate Cypher queries from user input using the configured prompts and LLM."""
+
     logger.info("Step: Cypher Query Generation")
     system_prompt_content = SYSTEM_PROMPT_TEMPLATE.format(
         graph_schema=state["schema"],
         rag_examples=state["context"]
     )
+
     system_message = SystemMessage(content=system_prompt_content)
     user_prompt_content = USER_PROMPT_CYPHER_GENERATION.format(
         user_input=state["input"]
     )
+
     human_message = HumanMessage(content=user_prompt_content)
     response = llm.invoke([system_message, human_message])
+
+    #Format multiple queries
     cypher_queries = parse_multiple_queries(response)
-    logger.info(f"Generated {len(cypher_queries)} cypher queries")
-    print(cypher_queries)
+    logger.info(f"Generated {len(cypher_queries)} cypher queries: {cypher_queries}")
+
     return {"cypher_query": cypher_queries}
 
 
@@ -252,20 +278,25 @@ def validate_cypher_query(query: str, schema: str) -> Dict[str, Any]:
         errors.append("Unbalanced square brackets")
     if query.count('{') != query.count('}'):
         errors.append("Unbalanced braces")
+
     query_upper = query.upper()
     has_match = 'MATCH' in query_upper
     has_return = 'RETURN' in query_upper
     has_create = 'CREATE' in query_upper
     has_merge = 'MERGE' in query_upper
+    
     if not (has_match or has_create or has_merge):
         errors.append("Query must contain MATCH, CREATE or MERGE")
     if has_match and not has_return:
         warnings.append("MATCH without RETURN may not return data")
+
     dangerous_patterns = ['DELETE', 'DETACH DELETE', 'DROP', 'REMOVE']
     for pattern in dangerous_patterns:
         if pattern in query_upper:
             warnings.append(f"Query contains potentially dangerous operation: {pattern}")
+
     is_valid = len(errors) == 0
+
     return {"is_valid": is_valid, "errors": errors, "warnings": warnings}
 
 
@@ -290,6 +321,8 @@ class Neo4jExecutorWithRetry:
             if validate_first:
                 validation = validate_cypher_query(query, "")
                 execution_log.append(f"Validation: {validation}")
+
+                #Not valid 
                 if not validation["is_valid"]:
                     return {
                         "success": False,
@@ -299,8 +332,12 @@ class Neo4jExecutorWithRetry:
                         "validation": validation,
                         "execution_log": execution_log
                     }
+                
+                # Valid with warnings 
                 if validation["warnings"]:
                     logger.warning(f"Validation warnings: {validation['warnings']}")
+
+            # Execute query with retry 
             execution_log.append("Starting execution...")
             records = self.execute_with_retry(query)
             execution_log.append(f"Success: {len(records)} records returned")
@@ -312,6 +349,7 @@ class Neo4jExecutorWithRetry:
                 "validation": validation if validate_first else None,
                 "execution_log": execution_log
             }
+        
         except Exception as e:
             error_msg = str(e)
             execution_log.append(f"Error: {error_msg}")
@@ -374,13 +412,13 @@ def execute_queries_with_auto_fix(
     successful_queries = []
     failed_queries = []
     
-    for q_idx, query in enumerate(queries, start=1):
+    for q_idx, query in enumerate(queries, start=1): # For each query generated 
         logger.info(f"Attempting query {q_idx}/{len(queries)}")
         attempts_for_this_query = []
         current_query = query
         query_success = False
         
-        for attempt in range(max_fix_attempts + 1):
+        for attempt in range(max_fix_attempts + 1): # Try until reachs maximum attempts 
             logger.info(f"  Try {attempt + 1}/{max_fix_attempts + 1}")
             result = executor.execute_query_safe(current_query, validate_first=True)
             attempt_info = {"attempt_number": attempt + 1, "query": current_query, "result": result}
@@ -388,7 +426,7 @@ def execute_queries_with_auto_fix(
             
             # Check if query succeeded
             if result["success"] and result["records_count"] > 0:
-                logger.info(f"  ✓ Success with {result['records_count']} records")
+                logger.info(f"  Success with {result['records_count']} records")
                 successful_queries.append({
                     "query_index": q_idx,
                     "final_query": current_query,
@@ -400,7 +438,7 @@ def execute_queries_with_auto_fix(
             
             # Try automatic fix if not on last attempt
             elif attempt < max_fix_attempts:
-                logger.warning(f"  ✗ Failed: {result.get('error', 'unknown')}")
+                logger.warning(f"Failed: {result.get('error', 'unknown')}")
                 logger.info("  → Trying automatic correction...")
                 try:
                     current_query = auto_fix_cypher_query(current_query, result.get('error',''), schema, llm)
@@ -409,7 +447,7 @@ def execute_queries_with_auto_fix(
                     logger.error(f"  → Auto-fix error: {e}")
                     break
             else:
-                logger.warning("  ✗ Attempts exhausted for this query")
+                logger.warning("Attempts exhausted for this query")
         
         # Store this query's attempts
         all_attempts.append({
@@ -439,14 +477,15 @@ def execute_queries_with_auto_fix(
     }
 
 
-def execute_query(state: GraphState, llm: BaseChatOpenAI) -> Dict[str, Any]:
+def execute_all_queries(state: GraphState, llm: BaseChatOpenAI) -> Dict[str, Any]:
     """Execute the generated Cypher queries using the executor with auto-fix support."""
     logger.info("Step: Running query")
     queries = state["cypher_query"]
-    NEO4J_URI = os.getenv('NEO4J_URI', "neo4j://localhost:7687")
-    NEO4J_USER = os.getenv('NEO4J_USER', "neo4j")
-    NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', "psr-2025")
+    NEO4J_URI = os.getenv('NEO4J_URI')
+    NEO4J_USER = os.getenv('NEO4J_USER')
+    NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD')
     executor = Neo4jExecutorWithRetry(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+
     try:
         result = execute_queries_with_auto_fix(queries, executor, llm, state.get('schema', ''), max_fix_attempts=2)
         
@@ -513,7 +552,7 @@ def create_langgraph_workflow(llm: BaseChatOpenAI):
         return generate_textual_response(state, llm)
 
     def execute_query_partial(state: GraphState):
-        return execute_query(state, llm)
+        return execute_all_queries(state, llm)
 
     workflow = StateGraph(GraphState)
 
@@ -534,6 +573,7 @@ def create_langgraph_workflow(llm: BaseChatOpenAI):
 
 def initialize(model: str) -> Tuple[StateGraph, MemorySaver]:
     """Initialize the LLM and return the compiled LangGraph workflow and memory."""
+
     try:
         if model == "gpt-5-2025-08-07":
             llm = ChatOpenAI(model_name="gpt-5-2025-08-07", request_timeout=REQUEST_TIMEOUT)
@@ -555,6 +595,7 @@ def initialize(model: str) -> Tuple[StateGraph, MemorySaver]:
 
         app, memory = create_langgraph_workflow(llm)
         return app, memory
+    
     except Exception as e:
         logger.error(f"Error initializing RAG: {e}")
         raise
@@ -590,7 +631,7 @@ if __name__ == "__main__":
         if "messages" in result and result["messages"]:
             final_response = result["messages"][-1].content
             print("\n==============================================")
-            print("✅ AGENT FINAL RESPONSE:")
+            print("AGENT FINAL RESPONSE:")
             print(final_response)
             print("==============================================\n")
         else:

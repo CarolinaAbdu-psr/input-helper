@@ -187,7 +187,15 @@ graph TD
 3. Conevert result to str 
 4. Add result to State Node (execute_query)
 
-### Step 4 : 
+**Query Execution, Retry & Treatment**
+
+- **Validation (`validate_cypher_query`)**: Performs basic syntax and safety checks before execution (balanced parentheses/brackets/braces, presence of `MATCH`/`CREATE`/`MERGE`, warns on dangerous operations like `DELETE`/`DROP`). Returns a structured validation result with `is_valid`, `errors`, and `warnings`.
+- **Executor with retry (`Neo4jExecutorWithRetry`)**: Wraps the Neo4j driver and executes Cypher with retry logic (uses `tenacity` exponential backoff). Use `execute_query_safe` to run queries: it validates first (optional), executes with retries, and returns a consistent result object including execution logs.
+- **LLM-assisted auto-fix (`auto_fix_cypher_query`)**: If a query fails, an LLM-based helper composes a corrected query using the graph schema, the original query, and the error message. The function returns the corrected query only (attempts to preserve original logic and change only what's necessary).
+- **Batch execution & attempts (`execute_queries_with_auto_fix`)**: Processes all generated queries, attempts automatic fixes up to a configurable number of retries per query, records per-attempt details (query, result, logs), separates successful and failed queries, and returns a comprehensive summary (counts, successful queries with records, failed queries with final errors).
+- **Final orchestration (`execute_all_queries`)**: Calls the batch executor, composes a JSON summary of total/successful/failed queries and their results, logs the outcome, and ensures the Neo4j executor is closed.
+
+### Step 4 - Generate Textual Response : 
 1. Creates System Prompt and System Message with empty rag_data and SCHEMA_DATA
 2. Creates User Prompt and Human Message with user prompt, cypher query and query result
 3. Invoke LMM with System Message and Human Message 

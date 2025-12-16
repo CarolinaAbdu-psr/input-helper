@@ -35,6 +35,36 @@
             }
         },
         {
+            "name": "Python: RAG SDDP Agent With Autofix",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "RAG.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                // LMM Model 
+                "-m",
+                "gpt-4.1", 
+                
+                // SDDP study path 
+                "-s",
+                "D:\\01-Repositories\\factory-graphs\\Bolivia", 
+                
+                // Natural question 
+                "-q",
+                "How many Thermal Plants are in the System and which one have the highest capacity?" ,
+
+                // Recreat study 
+                "-r",
+                "False"
+
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                
+            }
+        },
+        {
             "name": "Rag Generator",
             "type": "debugpy",
             "request": "launch",
