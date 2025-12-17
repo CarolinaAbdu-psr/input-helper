@@ -65,7 +65,8 @@ class PropertyExtractor:
                 'Full_ID': node_id,
                 'ObjType': property_type,
                 'code': obj.code,
-                'name': f"{obj.type}_{obj.code}"
+                'name': f"{obj.type}_{obj.code}", 
+                'Description': f"This is a node that represents a {property_type} property of {parent_node} object with code {obj.code}." 
             })
             
             self.properties[node_id] = time_series_data
@@ -100,11 +101,6 @@ class PropertyExtractor:
         except:
             return "Complex non-serializable value"
         
-    def extract_static_property_with_dimensions(self, key: str, obj) -> Any:
-
-        dimensions = obj.description(key).dimensions()
-        for d in dimensions.values():
-            value = obj.get(f"{key}({d})")
     
     def extract_dynamic_property(self, key: str, obj, node_id: str) -> Dict[str, Any]:
         """
@@ -205,6 +201,55 @@ class PropertyExtractor:
                 logger.error(f"Critical error processing node '{node_id}': {e}", exc_info=True)
         
         logger.info(f"Completed node properties extraction. Total nodes: {len(original_graph.nodes())}, Errors: {error_count}")
+        # Remove the raw `object` attribute from all nodes to avoid keeping
+        # non-serializable references in the returned graph structure.
+        try:
+            for node_id, attrs in self.graph.nodes(data=True):
+                if 'object' in attrs:
+                    attrs.pop('object', None)
+            logger.debug("Stripped 'object' attribute from all graph nodes")
+        except Exception as e:
+            logger.warning(f"Failed to strip 'object' attributes from nodes: {e}")
+
+        
+        def _sanitize_for_graphml(value):
+            # Convert numpy scalar types to native Python types if available
+            try:
+                import numpy as _np
+                if isinstance(value, _np.generic):
+                    return value.item()
+            except Exception:
+                pass
+
+            # Allow simple primitives
+            if isinstance(value, (str, int, float, bool)):
+                return value
+
+            # For lists/dicts and other complex types, store as JSON string
+            try:
+                return json.dumps(value, default=str, ensure_ascii=False)
+            except Exception:
+                try:
+                    return str(value)
+                except Exception:
+                    return None
+
+        try:
+            for node_id, props in self.properties.items():
+                if node_id in self.graph.nodes:
+                    try:
+                        node_attrs = self.graph.nodes[node_id]
+                        for k, v in props.items():
+                            # Skip redundant identifiers that are already part of node metadata
+                            if k in ('Full_ID', 'ObjType'):
+                                continue
+                            node_attrs[k] = _sanitize_for_graphml(v)
+                        logger.debug(f"Attached {len(props)} extracted properties to node '{node_id}' (sanitized for GraphML)")
+                    except Exception as e:
+                        logger.warning(f"Failed to attach properties to node '{node_id}': {e}")
+        except Exception as e:
+            logger.warning(f"Failed to attach extracted properties to graph nodes: {e}")
+
         return self.graph, self.properties
     
     def _create_base_properties(self, node_id: str, attrs: Dict, obj) -> Dict[str, Any]:
@@ -213,7 +258,8 @@ class PropertyExtractor:
             'Full_ID': node_id,
             'ObjType': attrs['type'],
             'code': obj.code,
-            'name': obj.name.strip() 
+            'name': obj.name.strip(),
+            'Description': f"This is a {attrs['type']}, with code {obj.code} and name {obj.name.strip()}"
         }
     
     def _extract_all_properties(self, descriptions: Dict, obj, node_id: str) -> Dict[str, Any]:
@@ -271,3 +317,4 @@ if __name__== "__main__":
     STUDY_PATH = r"D:\\01-Repositories\\factory-graphs\\Bolivia"
     G, load_times = data_loader(STUDY_PATH)
     G, node_properties = extract_node_properties(G)
+    print(G.nodes(data='object'))

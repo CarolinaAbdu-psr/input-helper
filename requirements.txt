@@ -10,6 +10,7 @@ langgraph
 langchain_text_splitters
 chromadb
 langchain_community
+langchain-tools
 jq
 awscli
 boto3
