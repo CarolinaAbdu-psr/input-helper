@@ -102,7 +102,7 @@ def create_schema(study_path: str, schema_path:str):
     neo4j_auth = ("neo4j", "psr-2025")
 
     # Load graph data
-    G, load_times = data_loader(study_path)
+    G = data_loader(study_path)
     G, node_properties = extract_node_properties(G)
     nodes, edges = load_networkx_to_neo4j(
         G, node_properties, uri=neo4j_uri, auth=neo4j_auth, clear_existing_data=True

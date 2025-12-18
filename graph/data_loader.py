@@ -43,5 +43,5 @@ def data_loader(study_path):
     except Exception as e:
         print(f"Erro ao carregar o estudo: {e}")
 
-    return G, profiling_times
+    return G
 
