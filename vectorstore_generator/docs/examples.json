@@ -93,5 +93,16 @@
       "error": "Error: Use a the Maximun Generatin Capaciy and the HAS_PROPERTY edge as were goint to get a dynamic value, instead of using the simple property.",
       "query": "MATCH (s:System)-[:Ref_ThermalPlant]->(tp:ThermalPlant)-[:Has_Property]->(cap:MaximumGenerationCapacity) RETURN tp.name AS ThermalPlantName, cap.value AS InstalledCapacity ORDER BY cap.value DESC LIMIT 1"
     }
+  },
+  {
+    "id": 9 , 
+    "natural_question": "Which is the peak of the demand",
+    "correct_cypher": {
+      "instruction": "Get the maximum value of 'EnergyPerBlock' and it's correspondent date",
+      "query": "MATCH (s:DemandSegment)-[:HasProperty]->(e:EnergyPerBlock) RETURN tp.name AS thermal_plant_with_highest_capacity ORDER BY tp.MaximumGenerationCapacity DESC"},
+    "incorrect_cypher": {
+      "error": "Error: Use a the Maximun Generatin Capaciy and the HAS_PROPERTY edge as were goint to get a dynamic value, instead of using the simple property.",
+      "query": "MATCH (s:System)-[:Ref_ThermalPlant]->(tp:ThermalPlant)-[:Has_Property]->(cap:MaximumGenerationCapacity) RETURN tp.name AS ThermalPlantName, cap.value AS InstalledCapacity ORDER BY cap.value DESC LIMIT 1"
+    }
   }
 ]

@@ -1,242 +1,324 @@
 # Input Helper Project 
 
-This project implements an advanced **Question-Answering (Q\&A)** system over **PSR** energy planning models. The core goal is to enable both technical and non-technical users to query the model's complex data structure using **natural language**, translating these questions into structured **Cypher** queries (for Neo4j) and returning clear, textual answers.
+This project implements an advanced **Question-Answering (Q\&A)** system over **PSR SDDP** energy planning models. The core goal is to enable both technical and non-technical users to query complex study data using **natural language**, leveraging an intelligent **agentic AI** that autonomously selects and executes the right tools to find answers.
 
 -----
 
-## Proposed Development 
+## 🎯 Core Approach
 
-The **Text-to-Cypher RAG Agent** acts as an intelligent translation layer, combining the power of **Large Language Models (LLMs)** with a **Graph Database (Neo4j)**.
+The **PSR Study Agent** is a **tool-based agentic AI** powered by **LangGraph** that combines:
 
-  * **Accuracy:** Utilizes **Retrieval-Augmented Generation (RAG)** to provide the LLM with contextual Cypher examples and the exact graph schema, ensuring precise and valid query generation.
-  * **Meaningful Results:** The raw query result (e.g., a numerical value) is reprocessed by the LLM to be transformed into a friendly, interpretable textual answer.
+* **Intelligence:** Uses advanced LLMs (GPT-4, Claude, etc.) to understand natural language questions and decide which tools to call
+* **Flexibility:** Direct API access to PSR study data—no intermediate translations needed, just pure data queries
+* **Autonomy:** The agent iteratively calls tools, processes results, and refines answers without human intervention
+* **Explainability:** Each tool is purpose-built for a specific data retrieval pattern (filtering, counting, aggregating)
+
+Unlike the previous Cypher-based approach, this system directly queries the study using specialized tools, making it **faster**, **more maintainable**, and **easier to extend**.
 
 -----
 
 ## 🧩 Key Components
 
-The pipeline is orchestrated by **LangGraph** and uses a configuration file (`agent.yaml`) to define the agent's behavior.
-
 | Component | Function | Technology |
 | :--- | :--- | :--- |
-| **SDDP Graph** | Stores the model structure (nodes: Plants, Constraints; edges: `LINKED_TO`, `Ref_Fuel`). | **Neo4j** |
-| **Schema Processor** | Loads SDDP study files, builds the graph, and extracts the schema (`Nodes` and `Relationships`). | **Python / NetworkX / Neo4j** |
-|**Vectorstore Generator** | Creates a vectorstore with Cypher query examples and anti-examples from (`vectorstore_generator/docs/examples.json`) |  **ChromaDB / Embeddings** |
-| **Agent (LLM)** | Executes the two-step process: translation (LLM 1) and response formatting (LLM 2). | **LangChain / LangGraph / OpenAI / Anthropic** |
-| **RAG Retriever** | Retrive Cypher query examples and antiexamples relevant to the user's question from the vectorstore. | **ChromaDB / Embeddings** | 
-
+| **PSR Study API** | Direct access to study objects, properties, and relationships via `psr.factory` | **PSR Factory / Python SDK** |
+| **LLM Model** | Understands user questions and orchestrates tool calls | **OpenAI GPT-4 / Anthropic Claude / Others** |
+| **Tool Suite** | 10+ specialized tools for data retrieval, filtering, counting, and aggregation | **LangChain Tools** |
+| **Agent Workflow** | Manages the flow: LLM → tool selection → execution → response refinement | **LangGraph** |
+| **System Prompt** | Guides the LLM on tool capabilities and best practices | **YAML Config (agent.yaml)** |
 
 -----
-## 📁 Vectorstore Generator 
 
-This section explains the crucial process of transforming cypher examples at examples.json into vectorstore for Input Helper Rag.
+## 🛠️ Available Tools
+
+The agent has access to 10 specialized tools for querying PSR SDDP studies:
+
+### 1. **retrive_properties** 
+Retrieves detailed information about available object types and their properties.
+- **Use when:** Starting a query session, need to understand what data is available
+- **Returns:** Documentation of all object types, mandatory properties, static/dynamic properties, references
+
+### 2. **get_available_names**
+Lists all instances of a given object type in the study.
+- **Args:** `object_type` (e.g., 'ThermalPlant', 'HydroPlant', 'Bus')
+- **Returns:** List of all object names/identifiers of that type
+- **Use when:** Need to see what instances exist before filtering
+
+### 3. **count_objects_by_type**
+Counts how many objects of a given type exist in the study.
+- **Args:** `object_type`
+- **Returns:** Integer count
+- **Use when:** Quick count queries (e.g., "How many systems?")
+
+### 4. **find_by_name**
+Finds a specific object by its exact name.
+- **Args:** `object_type`, `name`
+- **Returns:** The matching object
+- **Use when:** Looking for a specific named object (e.g., 'Plant_ABC')
+
+### 5. **get_static_property**
+Retrieves static property values for objects.
+- **Args:** `object_type`, `property_name`, `object_name` (optional)
+- **Returns:** Dictionary of `{object_name: property_value}` pairs
+- **Use when:** Need specific property data (e.g., installed capacity, voltage)
+
+### 6. **find_by_property_condition**
+Filters objects by a numeric property condition.
+- **Args:** `object_type`, `property_name`, `property_condition` ('l'/<, 'e'/=, 'g'/>), `condition_value`
+- **Returns:** List of matching objects
+- **Use when:** Finding all plants with capacity > 500, buses with voltage <= 400, etc.
+
+### 7. **count_by_property_condition**
+Counts objects matching a property condition.
+- **Args:** Same as find_by_property_condition
+- **Returns:** Integer count
+- **Use when:** "How many plants have capacity > 100?"
+
+### 8. **sum_by_property_condition**
+Sums a property across filtered objects.
+- **Args:** Same as find_by_property_condition
+- **Returns:** Numeric sum
+- **Use when:** "What is total capacity of plants > 500?"
+
+### 9. **find_by_reference**
+Finds objects linked to a specific reference object.
+- **Args:** `object_type`, `reference_type` (e.g., 'RefFuels'), `reference_name` (e.g., 'Natural_Gas')
+- **Returns:** List of objects with that reference
+- **Use when:** Finding all thermal plants using a specific fuel, generators on a bus, etc.
+
+### 10. **count_by_reference**
+Counts objects linked to a specific reference.
+- **Args:** Same as find_by_reference
+- **Returns:** Integer count
+- **Use when:** "How many thermal plants use coal?"
+
+### 11. **sum_property_by_reference**
+Sums a property across objects linked to a reference.
+- **Args:** `object_type`, `reference_type`, `reference_name`, `property`
+- **Returns:** Numeric sum
+- **Use when:** "Total capacity of plants using Natural_Gas?"
+
+-----
+
+## ⚙️ LangGraph Workflow
+
+The agent workflow is a **state machine** that loops until the answer is found:
 
 ```mermaid
 graph TD
-    A[Start: Examples Files] --> B(Load .json Documents);
-
-    subgraph Document Loading
-        B  --> B3{Is file .json?};
-        B3 -- Yes --> B4(JSONLoader: question + metadata_func);
-        B4 --> B5(Post-process: Set page_content = natural_question, Flatten metadata);
-        B3 -- No --> B6(TextLoader: Other text files);
-    end
-
-    B5 --> C;
-    B6 --> C;
-
-    C[All Loaded Documents List ] --> D(Create Vectorstore);
-
-    subgraph Chunking and Embedding
-        D --> D1(Iterate Documents);
-        D1  --> D4{Is Document from .json file?};
-        D4 -- Yes --> D5(Keep Document as 1 Chunk);
-        D4 -- No --> D6(RecursiveCharacterTextSplitter);
-        D5 --> D7[Add Chunks to final_chunks list];
-        D6 --> D7;
-        D7 --> D8[Filter large chunks, handle sub-splitting];
-        D8 --> D9(Generate Embeddings with OpenAIEmbeddings);
-        D9 --> D10(Store in ChromaDB batches);
-    end
-
+    A[START: User Question] --> B["LLM Node<br/>(with tools bound)"]
+    B --> C{Has Tool Calls?}
+    C -->|Yes| D["Tool Executor Node<br/>(execute all tool calls)"]
+    D --> E["Results → Message State"]
+    E --> B
+    C -->|No| F[END: Final Response]
     
-    D10 --> E[Upload vectorstore to S3];
-
-    E --> F[End: Persistent ChromaDB Vectorstore]
-
-    style A fill:#4CAF50, color:#FFF, stroke-width:2px, stroke:#388E3C
-    style F fill:#4CAF50, color:#FFF, stroke-width:2px, stroke:#388E3C
-    style B3 fill:#FFC107, color:#000, stroke:#FF8F00
-
-    style B4 fill:#BBDEFB, color:#000, stroke:#1976D2
-    style B5 fill:#C8E6C9, color:#000, stroke:#4CAF50
-    style B6 fill:#CFD8DC, color:#000, stroke:#607D8B
-    style D1 fill:#FFC107, color:#000, stroke:#FF8F00
-    style D4 fill:#FFC107, color:#000, stroke:#FF8F00
-    style D5 fill:#C8E6C9, color:#000, stroke:#4CAF50
-    style D6 fill:#CFD8DC, color:#000, stroke:#607D8B
-    style D7 fill:#FFECB3, color:#000, stroke:#FFD740
-    style D8 fill:#FFCCBC, color:#000, stroke:#FF5722
-    style D9 fill:#D1C4E9, color:#000, stroke:#5E35B1
-    style D10 fill:#B3E5FC, color:#000, stroke:#0288D1
+    style A fill:#4CAF50, color:#FFF
+    style F fill:#4CAF50, color:#FFF
+    style B fill:#2196F3, color:#FFF
+    style D fill:#FF9800, color:#FFF
+    style C fill:#FFC107, color:#000
 ```
 
-### Rag Generator
-The program `rag_generator.py` creates a vectorstore using the available documents at `docs` folder. It uses `rag_utils.py` and `docs_collector` functions to run the workflow described above. 
+### Workflow Stages
 
-#### 1. Data Ingestion and Transformation
+#### Stage 1: **LLM Decision** 
+- LLM receives user question + system prompt + all previous messages
+- LLM sees available tools via `.bind_tools()`
+- LLM generates one or more **tool_calls**
+- Example: For "How many systems?", LLM calls `count_objects_by_type("System")`
 
-The `load_documents` function is responsible for ingesting the structured JSON files:
+#### Stage 2: **Tool Execution**
+- Executor node receives `tool_calls` from LLM response
+- Each tool is invoked with its arguments
+- Results are wrapped in `ToolMessage` objects
+- Added back to message state
 
-* **Contrastive Examples (`.json`):** These files are loaded using the LangChain `JSONLoader`. Crucially, the `jq_schema` is set to iterate over the root list (`.[]`), and a custom `metadata_func` is used to flatten the nested data structure.
-    * The **`page_content`** is set to the short **`natural_question`** (the string to be vectorized).
-    * The full **`correct_cypher`** and **`incorrect_cypher`** objects are flattened and stored in the document's **`metadata`** as simple strings (e.g., `cypher_correto_query`, `cypher_correto_inst`) to satisfy the constraints of ChromaDB.
+#### Stage 3: **Loop or End**
+- If LLM response has tool_calls → return to Stage 1 (continue loop)
+- If LLM response has NO tool_calls → end workflow, return final answer
 
-#### 2. Chunking Strategy (Embedding Unit)
+### Example Flow: "How many thermal plants use natural gas?"
 
-The `create_vectorstore` function processes the loaded documents into final chunks for embedding:
-
-* **Contrastive Examples (Zero-Chunking):** **Each question** extracted from the JSON is treated as a single, complete unit. **No further splitting** is applied. This ensures that the entire semantic context of the question is captured in a single embedding vector, maximizing retrieval accuracy for the RAG step. 
-
-#### 3. Vectorization and Persistence
-
-The process concludes by generating embeddings and saving the database:
-
-* **Embedding Model:** Uses a high-quality embedding model (e.g., OpenAI `text-embedding-3-small`) to convert the text chunks into vectors.
-* **ChromaDB:** The generated vectors and their associated metadata are stored in a persistent **ChromaDB** instance. This database serves as the searchable knowledge base for the `retrieve_context` step of the LangGraph workflow.
-
-### Upload vectorstore into S3
-
-After creating the ChromaDB folder containing the vector store, `rag_uploader.py` compresses the vector store into a ZIP file, saves it in the vectorstore directory, and then uses the functions from `api_s3.py` to upload it to Amazon S3.
-
-When you upload your vector store to Amazon S3 (Simple Storage Service), S3 serves as a highly durable, scalable, and secure storage layer. It does not process, index, or interact with the vector data itself—its role is solely to store the files reliably.
-
-### Update Vectorstore
-
-#### Step 1: 
-
-Update the json file, following the existing structure and save it.
-
-#### Step 2: 
-
-Run `rag_generator.py` to generate ChromaDB vectorstores
-
-The default source path is `vectorstore_generator/docs` and the default output is `chromadb`. 
-
-#### Step 3:
-
-`Run rag_uploader.py` to upload the vectorstore into S3. 
-
----
-
-## ⚙️ Visual Workflow 
-
-The agent's complete workflow is divided into four sequential steps managed by LangGraph.
-
-```mermaid
-graph TD
-    A[START: User Question] --> B(Step 1 - Retrieve Context);
-    B --> C{Step 2 - Generate Query};
-    C --> D[Step 3 - Run query];
-    D --> E{Step 4 - Generate Textual Response};
-    E --> F[END: Formatted Text Answer];
-
-    style A fill:#4CAF50, color:#FFF, stroke-width:2px, stroke:#388E3C
-    style F fill:#4CAF50, color:#FFF, stroke-width:2px, stroke:#388E3C
-    
-    
-    subgraph LLM-Powered Steps
-        C
-        E
-    end
-    
-    subgraph Data Injection & Retrieval
-        B
-        D
-    end
+```
+1. User: "How many thermal plants use natural gas?"
+   ↓
+2. LLM sees question + tools
+   → Decides to call: count_by_reference("ThermalPlant", "RefFuels", "Natural_Gas")
+   ↓
+3. Tool Executor runs the tool
+   → Returns: 42
+   ↓
+4. LLM generates final response
+   → "There are 42 thermal plants that use natural gas in this study."
+   → No more tool_calls needed
+   ↓
+5. Workflow ends, response printed
 ```
 
-### Input Data
-- LLM model (gpt-4.1 by default)
-- SDDP Path 
-- User Prompt (question about the case)
-
-### Step 1 - Retrive Context: 
-1. Get Sechema: 
-    - Creates a graph for the case 
-    - Upload this graph to Neo4j database
-    - Get entity types, relationships names and names (SCHEMA_DATA)
-2. Get examples: 
-    - Use a retriver to get the 3 most relevant examples to use as context
-    - This examples is retrived according to the user input, and then correct and incorret examples are generated
-    - Formata and save at context_str
-3. Add context_str and SCHEMADATA to State Node (retrive_contex)
-
-> **_NOTE:_** 
-    The examples file is not filled enough. More examples must be added 
-
-### Step 2 - Generate Cypher Query : 
-1. Creates System Prompt and System Message with rag_data and SCHEMA_DATA 
-2. Creates User Prompt and Human Message with user prompt 
-3. Invoke LMM with System Message and Human Message 
-4. Add query to State Node (generate_query)
-
-### Step 3 - Run Cypher Query : 
-1. Get query gerenerate by previous step
-2. Run query on neo4j instance created on step 1.1
-3. Conevert result to str 
-4. Add result to State Node (execute_query)
-
-**Query Execution, Retry & Treatment**
-
-- **Validation (`validate_cypher_query`)**: Performs basic syntax and safety checks before execution (balanced parentheses/brackets/braces, presence of `MATCH`/`CREATE`/`MERGE`, warns on dangerous operations like `DELETE`/`DROP`). Returns a structured validation result with `is_valid`, `errors`, and `warnings`.
-- **Executor with retry (`Neo4jExecutorWithRetry`)**: Wraps the Neo4j driver and executes Cypher with retry logic (uses `tenacity` exponential backoff). Use `execute_query_safe` to run queries: it validates first (optional), executes with retries, and returns a consistent result object including execution logs.
-- **LLM-assisted auto-fix (`auto_fix_cypher_query`)**: If a query fails, an LLM-based helper composes a corrected query using the graph schema, the original query, and the error message. The function returns the corrected query only (attempts to preserve original logic and change only what's necessary).
-- **Batch execution & attempts (`execute_queries_with_auto_fix`)**: Processes all generated queries, attempts automatic fixes up to a configurable number of retries per query, records per-attempt details (query, result, logs), separates successful and failed queries, and returns a comprehensive summary (counts, successful queries with records, failed queries with final errors).
-- **Final orchestration (`execute_all_queries`)**: Calls the batch executor, composes a JSON summary of total/successful/failed queries and their results, logs the outcome, and ensures the Neo4j executor is closed.
-
-### Step 4 - Generate Textual Response : 
-1. Creates System Prompt and System Message with empty rag_data and SCHEMA_DATA
-2. Creates User Prompt and Human Message with user prompt, cypher query and query result
-3. Invoke LMM with System Message and Human Message 
 -----
 
-##  How to Run 
+## 📝 System Prompt & Configuration
 
-### Usage via Command Line
+The agent behavior is defined in `agent.yaml`:
 
-The project uses `argparse` to receive the necessary configuration.
+```yaml
+system_prompt_template: |
+  You are an expert AI assistant specialized in analyzing PSR SDDP studies.
+  You have access to 11 specialized tools...
+  
+  ## WORKFLOW:
+  1. Understand the user's question
+  2. Use retrive_properties FIRST if unsure about available data
+  3. Call appropriate tools to retrieve/filter/aggregate data
+  4. Provide clear answers with context
+```
+
+The system prompt is loaded at startup and injected into every LLM call, guiding the agent's behavior.
+
+-----
+
+## 🚀 How to Run
+
+### Command Line
 
 ```bash
-python your_main_file.py \
+python RAG.py \
     -m gpt-4.1 \
     -s /path/to/your/sddp/study \
-    -q "What is the sum of the installed capacity for gas-fired thermal plants?"
+    -q "How many thermal plants have capacity greater than 500?"
 ```
 
-### Usage via VS Code (Recommended)
+**Arguments:**
+- `-m, --model`: LLM model to use (default: gpt-4.1)
+  - Supported: gpt-4.1, gpt-4.1-mini, o3, claude-4-sonnet, deepseek-reasoner, local_land
+- `-s, --study_path`: Path to your PSR SDDP study files (required)
+- `-q, --query`: Natural language question (required)
 
-Use the provided `.vscode/launch.json` configuration to easily debug and run the workflow by setting the necessary arguments in the `"args"` array.
+### Example Queries
 
+```bash
+# Count query
+python RAG.py -s /path/study -q "How many systems does this case have?"
 
----
+# Filtering query
+python RAG.py -s /path/study -q "Show me all thermal plants with capacity > 100"
 
-## 🛑 Current Limitations & Future Development 
+# Reference query
+python RAG.py -s /path/study -q "How many thermal plants use coal?"
 
+# Aggregation query
+python RAG.py -s /path/study -q "What is the total installed capacity of hydro plants?"
+```
 
-### Current Limitations (Challenges)
+### Environment Setup
 
-* **Incomplete Property Extraction:** Not all essential properties from the underlying SDDP model are being fully captured during the initial graph creation phase (e.g., properties like **Installed Capacity** are currently missed using the `as_dict` method). This restricts the queryable data.
-* **Query Scope Dependency:** The agent's utility is **limited to user questions** that fit within the boundaries of the existing graph structure and RAG examples. It may struggle with highly novel or out-of-scope inquiries.
-* **Neo4j Instance Requirement:** The pipeline **requires an active connection** to a Neo4j instance, which necessitates managing credentials and ensuring the database service is running, adding operational overhead.
+1. Create a Python virtual environment:
+```bash
+python -m venv venv
+source venv/Scripts/activate  # On Windows
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Set environment variables:
+```bash
+# .env file
+OPENAI_API_KEY=your_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_key  # If using Claude
+```
+
+-----
+
+## 📊 Workflow Details
+
+### Message State Management
+
+The agent maintains a conversation state:
+
+```python
+class AgentState(TypedDict):
+    messages: Annotated[list[AnyMessage], operator.add]  # Add messages (no replacement)
+```
+
+Each interaction adds:
+1. **AIMessage** - LLM response (may contain tool_calls)
+2. **ToolMessage** - Tool execution results
+
+Messages accumulate, giving context for refinement.
+
+### Tool Binding
+
+```python
+# In RAGAgent.__init__:
+self.model = model.bind_tools(tools)
+```
+
+This tells the LLM:
+- What tools exist
+- What parameters each tool expects  
+- What each tool does (from docstrings)
+
+The LLM then generates `tool_calls` in its structured response.
+
+### Conditional Routing
+
+```python
+def exists_action(self, state: AgentState):
+    result = state['messages'][-1]
+    return len(result.tool_calls) > 0  # True if tools called, False if done
+```
+
+Routes based on whether LLM made tool calls.
+
+-----
+
+## 🔄 Agent Initialization Flow
+
+```python
+# 1. Load configuration
+SYSTEM_PROMPT_TEMPLATE = load_agent_config("agent.yaml")
+
+# 2. Initialize LLM
+llm = ChatOpenAI(model_name="gpt-4.1", ...)
+
+# 3. Define tools
+tools = [retrive_properties, get_available_names, ..., sum_property_by_reference]
+
+# 4. Create agent with bound tools
+agent = RAGAgent(llm, tools, SYSTEM_PROMPT_TEMPLATE)
+
+# 5. Invoke workflow
+result = agent.workflow.invoke({'messages': [HumanMessage(content=user_input)]})
+
+# 6. Extract answer
+final_response = result['messages'][-1].content
+```
+
+-----
+
+## 🛑 Current Limitations & Future Development
+
+### Current Limitations
+
+* **Single Study:** Agent works with one loaded study at a time. Multi-study comparison not yet supported.
+* **Tool Latency:** Large studies with thousands of objects may experience slower tool execution (no indexing optimizations).
+* **Limited Error Handling:** Tool errors are returned as text; the agent may need multiple attempts to clarify.
+* **No Dynamic Tool Creation:** Tools are fixed at startup; can't define new tools mid-session.
 
 ### Future Development Pipeline
 
 | Priority | Task | Description |
 | :--- | :--- | :--- |
-| **High** | **Enhanced RAG & Example Base** | Create a comprehensive JSON file with more complex, multi-hop Cypher queries. Implement a more robust retrieval mechanism (e.g., semantic search with a vector database) to improve context injection. |
-| **High** | **Add Available Porperty Names** | Add to schema the available names to properties |
-| **High** | **State Memory** | If the study is the same, is no necessary to create graph all over again |
-| **Medium** | **Agent Configuration Refinements** | Implement iterative improvements to the `text_to_cypher_agent.yaml` prompts, focusing on error handling instructions and better aggregation logic. |
-| **Medium/Low** | **Query Rewriting Strategy** | Implement a pre-processing step to rewrite ambiguous or complex user questions into simpler, more direct queries that are easier for the LLM to translate accurately into Cypher. |
-| **Low** | **Neo4j Connection Research** | Research and potentially implement methods for establishing a Neo4j connection without requiring traditional username/password authentication, such as using connection tokens or integrated security solutions (if applicable). |
+| **High** | **Tool Performance** | Add caching/indexing for large studies; profile tool execution times |
+| **High** | **Error Recovery** | Improve error messages so LLM can self-correct without restarting |
+| **High** | **Documentation Tool** | Add a tool that returns detailed docs on properties, relationships dynamically |
+| **Medium** | **Multi-Study Support** | Allow loading multiple studies and querying across them |
+| **Medium** | **Memory/State Persistence** | Cache study metadata between runs to speed up initialization |
+| **Medium** | **Custom Tools** | Allow users to define domain-specific tools dynamically |
+| **Low** | **Streaming Output** | Support token-by-token streaming for real-time response display |
+| **Low** | **Visualization** | Add tools that generate charts/plots from query results |
+

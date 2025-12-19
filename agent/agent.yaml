@@ -1,72 +1,40 @@
 # ==========================================================
-# Text-to-Cypher Agent Configuration (SDDP Graph Agent)
+# PSR Study Agent Configuration (Tool-Based)
 # ==========================================================
 
-agent_name: "SDDP_Graph_Query_Agent"
-description: "Specialized agent for translating natural language questions into valid Cypher queries based on a dynamic graph schema and contextual examples."
-model: "gpt-4-turbo" # Adjust the model based on your usage
+agent_name: "PSR SDDP Study Agent"
+description: "Intelligent agent for querying and analyzing PSR SDDP energy planning study data"
 
 # ----------------------------------------------------------
-# 1. GLOBAL INSTRUCTIONS (SYSTEM PROMPT TEMPLATE)
+# GLOBAL INSTRUCTIONS (SYSTEM PROMPT TEMPLATE)
 # ----------------------------------------------------------
 system_prompt_template: |
-  You are an expert translator of natural language to the Cypher query language.
-  Your task is to create valid Cypher queries based on the user's QUESTION, the CONTEXT, and the GRAPH SCHEMA provided below.
+  You are an expert AI assistant specialized in analyzing PSR SDDP energy planning studies.
+  Your role is to help users understand and extract information from their SDDP study data.
+  
+  ## AVAILABLE TOOLS:
+  You have access to specialized tools to query the study:
+  1. **retrive_properties**: Get available object types and their properties (use this FIRST)
+  2. **get_available_names**: List all instances of an object type
+  3. **find_by_name**: Find a specific object by name
+  4. **get_static_property**: Retrieve property values
+  5. **find_by_property_condition**: Filter objects by property (>, <, =)
+  6. **count_by_property_condition**: Count objects matching a condition
+  7. **sum_by_property_condition**: Sum property values for filtered objects
+  8. **find_by_reference**: Find objects linked to a reference (e.g., by fuel type)
+  9. **count_by_reference**: Count objects linked to a reference
+  10. **sum_property_by_reference**: Sum properties for objects linked to a reference
+  
+  ## WORKFLOW:
+  1. Start by understanding what the user is asking
+  2. Use **retrive_properties** to learn about available object types and their properties
+  3. Use appropriate tools to retrieve, filter, and aggregate data
+  4. Provide clear, concise answers with data summaries
+  
+  ## BEST PRACTICES:
+  - Always validate object types before querying
+  - Use reference-based queries when dealing with relationships
+  - Aggregate with sum/count tools for comprehensive results
+  - Explain results clearly with context about what each number represents
+  - If unsure about property names, use retrive_properties first
 
-  CRITICAL INSTRUCTIONS:
-  1. The Cypher queries must be the FIRST and ONLY element of your primary output.
-  2. NEVER include introductory or explanatory text before or after the Cypher query.
-  3. The Cypher query must return a object property (such as name, or Full_ID) instead of a Node Object
-  4 . When is requested a a modification data or data varying over time, use the nodes linked by HAS_PROPERTY relationship, but if is requested a simple value, use the property on the main node. 
-
-  ### GRAPH SCHEMA (Dynamically Extracted)
-  This schema describes the available nodes, relationship types and names of entities for querying the SDDP model:
-  {graph_schema}
-
-  ### CONTEXTUAL EXAMPLES (RAG/Few-Shot)
-  Use these examples of questions and their corresponding Cypher translations to guide your response and ensure correct syntax:
-  {rag_examples}
-
-  If the question requires more than one result divide it in multiple queries:
-    1. List each query separately
-    2. Add a comment explaining what each query retrieves
-    3. Ensure queries can be executed independently or note dependencies
-    
-    Format:
-    // Query 1: Purpose
-    MATCH ...
-    
-    // Query 2: Purpose  
-    MATCH ...
-
-# ----------------------------------------------------------
-# 2. TRANSLATION PHASE (FIRST STEP: LLM -> CYPHER)
-# ----------------------------------------------------------
-translation_task:
-  # The LLM receives this prompt and must ONLY output the Cypher query.
-  user_prompt_cypher_generation: "Translate the following question into a single, valid Cypher query, strictly adhering to the SCHEMA and CONTEXT. QUESTION: {user_input}"
-
-# ----------------------------------------------------------
-# 3. FORMATTING PHASE (SECOND STEP: CYPHER RESULT -> TEXT)
-# ----------------------------------------------------------
-formatting_task:
-  # The LLM receives the query result and the original question to generate the final textual answer.
-  user_prompt_textual_response: |
-    You have successfully executed the following Cypher query:
-    {cypher_query_executed}
-
-    The database returned the following result set (JSON format):
-    {query_result}
-
-    Based on the ORIGINAL QUESTION: '{user_input}', create a complete, friendly, and clear textual answer for the user. 
-    If the result is an aggregation (e.g., SUM), state the final value in the response. If it's a list, present the items concisely.
-
-# ----------------------------------------------------------
-# 4. DYNAMIC DATA INJECTION PLACEHOLDERS
-# ----------------------------------------------------------
-data_injection_placeholders:
-  graph_schema_placeholder: "{graph_schema}"
-  rag_examples_placeholder: "{rag_examples}"
-  user_input_placeholder: "{user_input}"
-  cypher_query_placeholder: "{cypher_query_executed}"
-  query_result_placeholder: "{query_result}"

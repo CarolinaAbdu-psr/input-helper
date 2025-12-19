@@ -52,11 +52,7 @@
                 
                 // Natural question 
                 "-q",
-                "How many Thermal Plants are in the System and which one have the highest capacity?" ,
-
-                // Recreat study 
-                "-r",
-                "False"
+                "How many systems this case have?" 
 
             ],
             "env": {

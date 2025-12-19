@@ -3,3 +3,4 @@
 "Which Thermal Plants use Fuel 1" - ok 
 "to which system Thermal 1 belongs?" ok, bus case sensitive 
 "How many buses there are in this case?" ok 
+How many Thermal Plants are in the System and which one have the highest capacity?
